@@ -45,31 +45,9 @@ def split_string(lb_arn, tg_arn):
     resource_name1 = lb_arn.split("/", 1)
     resource_name2 = tg_arn.split("/", 1)
     resource_name = f"{resource_name1[1]}/targetgroup/{resource_name2[1]}"
-    print(resource_name)
+    print(f"nome do recurso: {resource_name}")
     return resource_name 
 
-
-#Funcao que cria loadbalancer
-def create_lb(cliente): 
-    response = cliente.create_load_balancer(
-    AvailabilityZones=[
-        'us-east-1a', 'us-east-1b',
-    ],
-    Listeners=[
-        {
-            'InstancePort': 8080,
-            'InstanceProtocol': 'HTTP',
-            'LoadBalancerPort': 80,
-            'Protocol': 'HTTP',
-        },
-    ],
-    SecurityGroups = [
-        "sg-0c1ce2b0620f64637",
-    ],
-    LoadBalancerName='my-load-balancer',
-    )
-    print(response)
-    return response
 
 #Funcao que cria loadbalancer
 def create_lbv2(client):
@@ -95,6 +73,9 @@ def create_TG(client):
         TargetType='instance',
         VpcId='vpc-c59a57bf',
         HealthCheckPath='/admin/',
+        Matcher = {
+                'HttpCode': '200,302',
+        },
     )
     return response
 
@@ -140,9 +121,6 @@ def launch_AG(cliente, imagem, userdata, tg_arn):
         AvailabilityZones=[
             'us-east-1a', 'us-east-1b', 'us-east-1c', 'us-east-1d', 'us-east-1e', 'us-east-1f'
         ],
-        #LoadBalancerNames=[
-        #    "my-load-balancer",
-        #],
         TargetGroupARNs=[
             tg_arn,
         ],
@@ -162,7 +140,7 @@ def put_policy(client, resource_name):
         'TargetValue': 2.0,
     },
     )
-    print(response)
+    print("Policy adicionada ao autoscaling group. \n")
 
 
 
@@ -216,28 +194,27 @@ all_insts_NV = ec2_resource_NV.instances.all()
 
 for instance in all_insts:
     if(instance.state["Name"] != "running"):
-        print("Pular")
+        print("Procurando instâncias que estão rodando \n")
     else:
         for tag in instance.tags:
             if tag["Value"] == "Instancia":
                 instance.terminate()
-                print(instance.state)
+                print("Deletando instâncias... \n")
 
 for instance in all_insts_NV:
     if(instance.state["Name"] != "running"):
-        print("Pular")
+        print("Procurando instâncias que estão rodando \n")
     else:
         for tag in instance.tags:
             if tag["Value"] == "Instancia_Django":
                 instance.terminate()
-                print(instance.state)
+                print("Deletando instâncias... \n")
 
-#response2 = client_AG.delete_auto_scaling_group(AutoScalingGroupName='my-AG')
-#response = client_AG.delete_launch_configuration(LaunchConfigurationName='my-launch-config')
+
 
 try:
     cria_instancia(ec2_resource, Image, "t2.micro", "ManuelOhio", SecGroupName, userdata, "Instancia")
-    print("Rodando")
+    print("Criando instância postgresql \n")
     time.sleep(180)
 except Exception as e:
     print(e)
@@ -248,14 +225,16 @@ for instance in all_insts:
     if(instance.state["Name"] != "running"):
         print("esperando subir banco de dados")
     else:
-        ip_postgres= instance.public_ip_address
-        print(ip_postgres)
+        for tag in instance.tags:
+            if tag["Value"] == "Instancia":
+                ip_postgres= instance.public_ip_address
+                print("Pegando ip da instância postgresql")
 
 all_images = ec2_resource_NV.images.all()
 
 for image in all_images:
     if image.name == "Imagem_Django":
-        print(image)
+        print("Deletando Imagens antigas... \n")
         image.deregister()
 
 
@@ -278,30 +257,31 @@ reboot
 """
 
 try:
+    print("Criando instância Django \n")
     time.sleep(160)
     cria_instancia(ec2_resource_NV, Image_NV, "t2.micro", "Manuel", SecGroupName, userdata_django, "Instancia_Django")
     time.sleep(320)
-    print("rodando")
+    print("Instância Django criada. \n")
 except Exception as e:
     print(e)
 
 all_insts_NV = ec2_resource_NV.instances.all()
 
 for instance in all_insts_NV:
-    print(instance.state)
+    #print(instance.state)
     if(instance.state["Name"] != "running"):
-        print("Pular inst")
+        print("Procurando instâncias que estão rodando \n")
     else:
         for tag in instance.tags:
             if tag["Value"] == "Instancia_Django":
                 id_instancia = instance.instance_id
-                print(id_instancia) 
+                print("Pegando IP da instância Django \n") 
 
 
 imagem_dj = ec2_client_NV.create_image(InstanceId=id_instancia, Name="Imagem_Django", NoReboot=True)
 time.sleep(70)
-print(imagem_dj)
-print(imagem_dj["ImageId"])
+#print(imagem_dj)
+#print(imagem_dj["ImageId"])
 
 
 lbs = client_LB.describe_load_balancers()
@@ -311,15 +291,16 @@ for lb in lbs["LoadBalancerDescriptions"]:
         client_LB.delete_load_balancer(LoadBalancerName="my-load-balancer")
 
 try:
+    print("Criando loadbalancer e targetgroup \n")
     #create_lb(client_LB)
     lbv2 = create_lbv2(client_LB2)
     TG = create_TG(client_LB2)
     time.sleep(80)
-    print("LB2:   ")
-    print(lbv2["LoadBalancers"][0]["LoadBalancerArn"])
+    #print("LB2:   ")
+    #print(lbv2["LoadBalancers"][0]["LoadBalancerArn"])
     lb_arn = lbv2["LoadBalancers"][0]["LoadBalancerArn"]
-    print("TG:    ")
-    print(TG["TargetGroups"][0]["TargetGroupArn"])
+    #print("TG:    ")
+    #print(TG["TargetGroups"][0]["TargetGroupArn"])
     tg_arn = TG["TargetGroups"][0]["TargetGroupArn"]
     resource_tag = split_string(lb_arn, tg_arn)
     #reg_inst(client_LB, id_instancia)
@@ -328,6 +309,7 @@ except Exception as e:
 
 
 try:
+    print("Criando listener do loadbalancer \n")
     create_listener(client_LB2, lb_arn, tg_arn)
     time.sleep(120)
 except Exception as e:
@@ -336,6 +318,7 @@ except Exception as e:
 ##############################################################################################
 
 try:
+    print("Criando autoscaling group \n")
     launch_AG(client_AG, imagem_dj["ImageId"], userdata_django, tg_arn)
     time.sleep(120)
 except Exception as e:
@@ -344,24 +327,32 @@ except Exception as e:
 #response = client_LB.describe_target_groups(LoadBalancerArn=)
 
 try:
+    print("Criando policy e colocando no autoscaling group \n")
     put_policy(client_AG, resource_tag)
     time.sleep(30)
 except Exception as e:
     print(e)
 
 
-#all_insts_NV = ec2_resource_NV.instances.all()
+all_insts_NV = ec2_resource_NV.instances.all()
 
-#for instance in all_insts_NV:
-#    if(instance.state["Name"] != "running"):
-#        print("Pular")
-#    else:
-#        for tag in instance.tags:
-#            if tag["Value"] == "Instancia_Django":
-#                instance.terminate()
-#                print(instance.state)
+for instance in all_insts_NV:
+    if(instance.state["Name"] != "running"):
+        print("Procurando instâncias que estão rodando \n")
+    else:
+        for tag in instance.tags:
+            if tag["Value"] == "Instancia_Django":
+                instance.terminate()
+                print("Apagando instância Django \n")
 
+LBDNS = client_LB2.describe_load_balancers()
 
+#print(LBDNS)
+dnsLB = LBDNS["LoadBalancers"][0]["DNSName"]
+print("Salvando DNS do Loadbalancer em um arquivo de texto. \n")
 
+f = open("DNS.txt", "w")
+f.write(dnsLB)
+f.close()
 
 
