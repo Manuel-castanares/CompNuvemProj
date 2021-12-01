@@ -213,7 +213,7 @@ for instance in all_insts_NV:
 
 
 try:
-    cria_instancia(ec2_resource, Image, "t2.micro", "ManuelOhio", SecGroupName, userdata, "Instancia")
+    cria_instancia(ec2_resource, Image, "t2.micro", "ManuelOhio", "launch-wizard-1", userdata, "Instancia")
     print("Criando instância postgresql \n")
     time.sleep(180)
 except Exception as e:
@@ -259,7 +259,7 @@ reboot
 try:
     print("Criando instância Django \n")
     time.sleep(160)
-    cria_instancia(ec2_resource_NV, Image_NV, "t2.micro", "Manuel", SecGroupName, userdata_django, "Instancia_Django")
+    cria_instancia(ec2_resource_NV, Image_NV, "t2.micro", "Manuel", "launch-wizard-1", userdata_django, "Instancia_Django")
     time.sleep(320)
     print("Instância Django criada. \n")
 except Exception as e:
